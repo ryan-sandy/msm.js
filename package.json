@@ -1,0 +1,19 @@
+{
+  "name": "msm",
+  "version": "0.0.0",
+  "description": "A node.js wrapper for Minecraft Server Manager",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "minecraft",
+    "minecraft server manager",
+    "minecraft server",
+    "minecraft manager",
+    "msm"
+  ],
+  "author": "Ryan Lee",
+  "license": "MIT"
+}
