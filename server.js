@@ -14,7 +14,7 @@ exports.listPlayers = function (serverName, next) {
     'msm ' + clean(serverName) + ' connected',
     function (err, stdout, stderr) {
       if (err) { return next(err); }
-      next(null, stdout.trim().split('\n'));
+      next(null, stdout.trim().split(', '));
     }
   );
 };
