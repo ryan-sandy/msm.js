@@ -1,2 +1,2 @@
 run:
-	sudo node app.js
+	sudo mocha --reporter spec -t 12000 test.js

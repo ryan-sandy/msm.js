@@ -9,22 +9,43 @@ var clean = function (message) {
   return rtn;
 };
 
-exports.listPlayers = function (serverName, next) {
-  exec(
-    'msm ' + clean(serverName) + ' connected',
-    function (err, stdout, stderr) {
-      if (err) { return next(err); }
-      next(null, stdout.trim().split(', '));
-    }
-  );
-};
-
 exports.kick = function (serverName, playerName, next) {
   exec(
     'msm ' + clean(serverName) + ' kick ' + clean(playerName),
     function (err, stdout, stderr) {
       if (err) { return next(err); }
       next();
+    }
+  );
+};
+
+//Lists the servers
+exports.list = function (next) {
+  var child = exec('msm server list', function (err, stdout, stderr) {
+    if (err) {
+      return next(err);
+    }
+    var servers = [];
+    stdout.trim().split('\n').forEach(function (ser) {
+      var pos = ser.search('\"'), end = ser.lastIndexOf('\"');
+      if (pos >= 0) {
+        servers.push({
+          'name' : ser.slice(pos + 1, end),
+          'status' : ser.slice(1, ser.search("]")).trim(),
+          'message' : ser.slice(ser.indexOf('.') + 2)
+        });
+      }
+    });
+    next(null, servers);
+  });
+};
+
+exports.listPlayers = function (serverName, next) {
+  exec(
+    'msm ' + clean(serverName) + ' connected',
+    function (err, stdout, stderr) {
+      if (err) { return next(err); }
+      next(null, stdout.trim().split(', '));
     }
   );
 };
@@ -37,6 +58,38 @@ exports.say = function (serverName, message, next) {
       next();
     }
   );
+};
+
+exports.start = function (serverName, next) {
+  exec(
+    'msm ' + clean(serverName) + ' start',
+    function (err, stdout) {
+      if (err) { return next(err); }
+      next(null, stdout);
+    }
+  );
+};
+
+exports.stop = function (serverName, next, now) {
+  var cmd = 'msm ' + clean(serverName) + ' stop';
+  if (now) {
+    cmd += ' now';
+  }
+  exec(cmd, function (err, stdout) {
+    if (err) { return next(err); }
+    next(null, stdout);
+  });
+};
+
+exports.restart = function (serverName, next, now) {
+  var cmd = 'msm ' + clean(serverName) + ' restart';
+  if (now) {
+    cmd += ' now';
+  }
+  exec(cmd, function (err, stdout) {
+    if (err) { return next(err); }
+    next(null, stdout);
+  });
 };
 
 exports.whiteList = {
@@ -69,26 +122,16 @@ exports.whiteList = {
         next();
       }
     );
+  },
+  'list' : function (serverName, next) {
+    exec(
+      'msm ' + clean(serverName) + ' wl list',
+      function (err, stdout) {
+        if (err) { return next(err); }
+        next(null, stdout.trim().split('\n'));
+      }
+    );
   }
 };
 
-//Lists the servers
-exports.list = function (next) {
-  var child = exec('msm server list', function (err, stdout, stderr) {
-    if (err) {
-      return next(err);
-    }
-    var servers = [];
-    stdout.trim().split('\n').forEach(function (ser) {
-      var pos = ser.search('\"'), end = ser.lastIndexOf('\"');
-      if (pos >= 0) {
-        servers.push({
-          'name' : ser.slice(pos + 1, end),
-          'status' : ser.slice(1, ser.search("]")).trim(),
-          'message' : ser.slice(ser.indexOf('.') + 2)
-        });
-      }
-    });
-    next(null, servers);
-  });
-};
+
