@@ -47,12 +47,14 @@ describe('Server', function () {
     });
   });
 
+  /*
   it('Restart the server', function (done) {
     server.restart(name, function (err) {
       assert.ifError(err);
       done();
     }, true);
   });
+  */
 });
 
 describe('Whitelist', function () {
@@ -94,6 +96,30 @@ describe('Whitelist', function () {
 
   it('Should add the player to the whitelist', function (done) {
     server.whiteList.add(name, pTest, function (err) {
+      assert.ifError(err);
+      done();
+    });
+  });
+});
+
+describe('Operators', function () {
+  var op;
+  it('Should list the operators', function (done) {
+    server.operators.list(name, function (err, ops) {
+      assert.ifError(err);
+      assert(ops.length > 0, 'Operators are of zero length. Check your server to ensure you have operators.');
+      op = ops[ops.length - 1];
+      done();
+    });
+  });
+  it('Should remove an operator', function (done) {
+    server.operators.remove(name, op, function (err) {
+      assert.ifError(err);
+      done();
+    });
+  });
+  it('Should add the operator', function (done) {
+    server.operators.add(name, op, function (err) {
       assert.ifError(err);
       done();
     });

@@ -50,6 +50,34 @@ exports.listPlayers = function (serverName, next) {
   );
 };
 
+exports.operators = {
+  'list' : function (serverName, next) {
+    exec(
+      'msm ' + clean(serverName) + ' op list',
+      function (err, stdout, stderr) {
+        if (err) { return next(err); }
+        next(null, stdout.trim().split(', '));
+      }
+    );
+  },
+  'add' : function (serverName, playerName, next) {
+    exec(
+      'msm ' + clean(serverName) + ' op add ' + clean(playerName),
+      function (err, stdout, stderr) {
+        next(err, stdout);
+      }
+    );
+  },
+  'remove' : function (serverName, playerName, next) {
+    exec(
+      'msm ' + clean(serverName) + ' op remove ' + clean(playerName),
+      function (err, stdout, stderr) {
+        next(err, stdout);
+      }
+    );
+  },
+};
+
 exports.say = function (serverName, message, next) {
   exec(
     'msm ' + clean(serverName) + ' say ' + clean(message),
@@ -133,5 +161,3 @@ exports.whiteList = {
     );
   }
 };
-
-
