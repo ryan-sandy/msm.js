@@ -56,7 +56,7 @@ exports.operators = {
       'msm ' + clean(serverName) + ' op list',
       function (err, stdout, stderr) {
         if (err) { return next(err); }
-        next(null, stdout.trim().split(', '));
+        next(null, stdout.trim().split('\n'));
       }
     );
   },
