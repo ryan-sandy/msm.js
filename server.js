@@ -2,6 +2,74 @@
 /*jslint node:true, indent:2*/
 
 var exec = require('child_process').exec;
+var isFunction = require('lodash.isfunction');
+
+var validName = /^[a-zA-Z0-9\_\-]+$/;
+var invalidName = /^(start|stop|restart|version|server|jargroup|all|config|update|help|\-\-.*)$/;
+var msgReservedName = 'A name may not be any of the following reserved worlds "start", "stop", "restart", "server", "version", "jargroup", "all", "config", "update" or "help" or start with two dashes (--)';
+var errorCodes = {
+  64: "Invalid user system user.",
+  65: "Invalid command.",
+  66: "Invalid argument(s).",
+  67: "Server is stoped.",
+  68: "Server is running.",
+  69: "Name not found.",
+  70: "File not found,",
+  71: "Duplicate name.",
+  72: "Failed to roll log files.",
+  73: "Conf error.",
+  74: "FATAL ERROR!",
+  75: "Java not installed."
+};
+
+var mcServerProps = {
+  "allow-flight": false,
+  "allow-nether": true,
+  "announce-player-achievements": true,
+  "difficulty": 1,
+  "enable-query": false,
+  "enable-rcon": false,
+  "enable-command-block": false,
+  "force-gamemode": false,
+  "gamemode": 0,
+  "generate-structures": true,
+  "generator-settings": "",
+  "hardcore": false,
+  "level-name": "world",
+  "level-seed": "",
+  "level-type": "DEFAULT",
+  "max-build-height": 256,
+  "max-players": 20,
+  "max-tick-time": 60000,
+  "max-world-size": 29999984,
+  "motd": "A Minecraft Server",
+  "network-compression-threshold": 256,
+  "online-mode": true,
+  "op-permission-level": 4,
+  "player-idle-timeout": 0,
+  "pvp": true,
+  "query.port": 25565,
+  "rcon.password": "",
+  "rcon.port": 25575,
+  "resource-pack": "",
+  "resource-pack-hash": "",
+  "server-ip": "",
+  "server-port": 25565,
+  "snooper-enabled": true,
+  "spawn-animals": true,
+  "spawn-monsters": true,
+  "spawn-npcs": true,
+  "spawn-protection": 16,
+  "use-native-transport": true,
+  "view-distance": 10,
+  "white-list": false,
+  "verify-names": true,
+  "admin-slot": false,
+  "public": true,
+  "server-name": "A Minecraft Server",
+  "max-connections": 3,
+  "grow-trees": true
+};
 
 var clean = function (message) {
   var rtn = message.slice(0);
@@ -9,155 +77,306 @@ var clean = function (message) {
   return rtn;
 };
 
-exports.kick = function (serverName, playerName, next) {
-  exec(
-    'msm ' + clean(serverName) + ' kick ' + clean(playerName),
-    function (err, stdout, stderr) {
-      if (err) { return next(err); }
-      next();
-    }
-  );
+// todo how do we handle players with invalid names? Does it matter?
+var isValidName = function (name) {
+  return (!name.match(invalidName) && name.match(validName));
 };
 
-//Lists the servers
-exports.list = function (next) {
-  var child = exec('msm server list', function (err, stdout, stderr) {
-    if (err) {
-      return next(err);
+var formatServerList = function (serverList) {
+  var servers = [];
+  serverList.trim().split('\n').forEach(function (ser) {
+    var pos = ser.search('\"'), end = ser.lastIndexOf('\"');
+    if (pos >= 0) {
+      servers.push({
+        'name': ser.slice(pos + 1, end),
+        'status': ser.slice(1, ser.search("]")).trim(),
+        'message': ser.slice(ser.indexOf('.') + 2)
+      });
     }
-    var servers = [];
-    stdout.trim().split('\n').forEach(function (ser) {
-      var pos = ser.search('\"'), end = ser.lastIndexOf('\"');
-      if (pos >= 0) {
-        servers.push({
-          'name' : ser.slice(pos + 1, end),
-          'status' : ser.slice(1, ser.search("]")).trim(),
-          'message' : ser.slice(ser.indexOf('.') + 2)
-        });
-      }
-    });
-    next(null, servers);
   });
+  return servers;
 };
 
-exports.listPlayers = function (serverName, next) {
-  exec(
-    'msm ' + clean(serverName) + ' connected',
-    function (err, stdout, stderr) {
-      if (err) { return next(err); }
-      next(null, stdout.trim().split(', '));
+var formatServerConfig = function (configArr) {
+  var config = {};
+  configArr.split('\n').forEach(function (ele) {
+    var split = ele.split('=');
+    if (split[1]) {
+      config[split[0]] = split[1].replace(/"/g, '');
+    } else {
+      config[split[0]] = "";
     }
-  );
-};
 
-exports.operators = {
-  'list' : function (serverName, next) {
-    exec(
-      'msm ' + clean(serverName) + ' op list',
-      function (err, stdout, stderr) {
-        if (err) { return next(err); }
-        next(null, stdout.trim().split('\n'));
-      }
-    );
-  },
-  'add' : function (serverName, playerName, next) {
-    exec(
-      'msm ' + clean(serverName) + ' op add ' + clean(playerName),
-      function (err, stdout, stderr) {
-        next(err, stdout);
-      }
-    );
-  },
-  'remove' : function (serverName, playerName, next) {
-    exec(
-      'msm ' + clean(serverName) + ' op remove ' + clean(playerName),
-      function (err, stdout, stderr) {
-        next(err, stdout);
-      }
-    );
-  },
-};
-
-exports.say = function (serverName, message, next) {
-  exec(
-    'msm ' + clean(serverName) + ' say ' + clean(message),
-    function (err, stdout, stderr) {
-      if (err) { return next(err); }
-      next();
-    }
-  );
-};
-
-exports.start = function (serverName, next) {
-  exec(
-    'msm ' + clean(serverName) + ' start',
-    function (err, stdout) {
-      if (err) { return next(err); }
-      next(null, stdout);
-    }
-  );
-};
-
-exports.stop = function (serverName, next, now) {
-  var cmd = 'msm ' + clean(serverName) + ' stop';
-  if (now) {
-    cmd += ' now';
-  }
-  exec(cmd, function (err, stdout) {
-    if (err) { return next(err); }
-    next(null, stdout);
   });
+  return config;
 };
 
-exports.restart = function (serverName, next, now) {
-  var cmd = 'msm ' + clean(serverName) + ' restart';
-  if (now) {
-    cmd += ' now';
-  }
-  exec(cmd, function (err, stdout) {
-    if (err) { return next(err); }
-    next(null, stdout);
-  });
+var cat = function(filePath, formatter) {
+  filePath = clean(filePath);
+  return new Promise(
+    function (resolve, reject) {
+      exec('cat ' + filePath, function (err, stdout, stderr) {
+        if (err) {
+          reject({error: err, msg: stderr});
+        }
+        if (isFunction(formatter)) {
+          resolve(formatter(stdout));
+        } else {
+          resolve(stdout);
+        }
+      })
+    }
+  );
 };
 
-exports.whiteList = {
-  'on' : function (serverName, next) {
-    exec('msm ' + clean(serverName) + ' wl on', function (err, stdout) {
-      if (err) { return next(err); }
-      next();
-    });
-  },
-  'off' : function (serverName, next) {
-    exec('msm ' + clean(serverName) + ' wl off', function (err, stdout) {
-      if (err) { return next(err); }
-      next();
-    });
-  },
-  'add' : function (serverName, playerName, next) {
-    exec(
-      'msm ' + clean(serverName) + ' wl add ' + clean(playerName),
-      function (err, stdout) {
-        if (err) { return next(err); }
-        next();
-      }
-    );
-  },
-  'remove' : function (serverName, playerName, next) {
-    exec(
-      'msm ' + clean(serverName) + ' wl remove ' + clean(playerName),
-      function (err, stdout) {
-        if (err) { return next(err); }
-        next();
-      }
-    );
-  },
-  'list' : function (serverName, next) {
-    exec(
-      'msm ' + clean(serverName) + ' wl list',
-      function (err, stdout) {
-        if (err) { return next(err); }
-        next(null, stdout.trim().split('\n'));
-      }
-    );
-  }
+var msmExec = function (cmd, formatter) {
+  cmd = clean(cmd);
+  return new Promise(
+    function (resolve, reject) {
+      exec(cmd, function (err, stdout, stderr) {
+        if (err) {
+          reject({error: err, msg: stderr});
+        }
+        if (isFunction(formatter)) {
+          resolve(formatter(stdout));
+        } else {
+          resolve(stdout);
+        }
+      })
+    }
+  );
 };
+var rejectRequest = function (reason) {
+  return new Promise(
+    function (resolve, reject) {
+      reject(reason);
+    }
+  )
+};
+
+exports.jarGroup = function (name) {
+  return {
+    list: function () {
+      return msmExec('msm jargroup list');
+    },
+    create: function (url) {
+      return msmExec('msm jargroup create ' + name + ' ' + url);
+    },
+    delete: function () {
+      return msmExec('msm jargroup delete ' + name);
+    },
+    rename: function (newname) {
+      return msmExec('msm jargroup rename ' + name + ' ' + newname);
+    },
+    changeurl: function (url) {
+      return msmExec('msm jargroup changeurl ' + name + ' ' + url);
+    },
+    getlatest: function () {
+      return msmExec('msm jargroup getlatest ' + name);
+    }
+  }; // end jarGroup return
+}; // end jarGroup function
+
+exports.global = {
+  start: function () {
+    return msmExec('msm  start');
+  },
+  stop: function (now) {
+    if (now) {
+      return msmExec('msm  stop now');
+    }
+    return msmExec('msm  stop');
+  },
+  restart: function (now) {
+    if (now) {
+      return msmExec('msm  restart now');
+    }
+    return msmExec('msm  restart now');
+  },
+  version: function () {
+    return msmExec('msm  version');
+  },
+  config: function () {
+    return msmExec('msm  config');
+  },
+  // todo figure out what the deal with: "msm update --noinput" is?
+  // todo we should likely not run this command as it could very easily break our wrapper
+  update: function () {
+    return msmExec('msm  update');
+  },
+  listServers: function () {
+    return msmExec('msm  server list');
+  }
+}; // end global object
+
+exports.server = function (name) {
+  if (!isValidName(name)) {
+    return rejectRequest(msgReservedName)
+  }
+  return {
+    create: function () {
+      return msmExec('msm create ' + name);
+    },
+    delete: function () {
+      return msmExec('msm delete ' + name);
+    },
+    rename: function (newName) {
+      return msmExec('msm rename ' + name + ' ' + newName);
+    },
+    start: function () {
+      return msmExec('msm ' + name + ' start');
+    },
+    stop: function (now) {
+      return msmExec('msm ' + name + ' stop' + (now) ? ' now' : '');
+    },
+    restart: function (now) {
+      return msmExec('msm ' + name + ' restart' + (now) ? ' now' : '');
+    },
+    status: function () {
+      return msmExec('msm ' + name + ' status');
+    },
+    connected: function () {
+      return msmExec('msm ' + name + ' connected');
+    },
+    logroll: function () {
+      return msmExec('msm ' + name + ' logroll');
+    },
+    backup: function () {
+      return msmExec('msm ' + name + ' backup');
+    },
+    jar: function (jargroup, file) {
+      return msmExec('msm ' + name + ' jar ' + jargroup + ' ' + file);
+    },
+    banIp: function (ip) {
+      return msmExec('msm ' + name + ' bl ip add ' + ip);
+    },
+    unbanIp: function (ip) {
+      return msmExec('msm ' + name + ' bl ip remove ' + ip);
+    },
+    listBanned: function () {
+      return msmExec('msm ' + name + ' bl list');
+    },
+    listOperators: function () {
+      return msmExec('msm ' + name + ' op list');
+    },
+    sendCmd: function (cmd) {
+      return msmExec('msm ' + name + ' cmd ' + cmd);
+    },
+    /* disabled as this as msm requires a ctrl-c to be send to exit this cmd
+     sendCmdReturnLog: function (cmd) {
+     return msmExec('msm ' + name + ' cmdlog ' + cmd);
+     },*/
+    config: {
+      getMsm: function() {
+        return msmExec('msm ' + name + ' config', formatServerConfig);
+      },
+      setMsm: function(key, value) {
+        return msmExec('msm ' + name + ' config ' + key + ' ' + value);
+      },
+      getMc: function() {
+        return new Promise(
+          function (resolve, reject) {
+            var propFile = this.getMsm()["msm-world-storage-path"].replace(/worldstorage/, 'server.properties');
+            var mcProps = cat(propFile, formatServerConfig);
+            mcProps.then(function(results){
+              for(var key in mcServerProps) {
+                if (!results.hasProperty(key)){
+                  results[key] = mcServerProps[key];
+                }
+              }
+              resolve(results);
+            })
+            .catch(reject);
+          }
+        );
+      }
+    },
+    worlds: {
+      list: function () {
+        return msmExec('msm ' + name + ' worlds list');
+      },
+      load: function () {
+        return msmExec('msm ' + name + ' worlds load');
+      },
+      ram: function (world) {
+        return msmExec('msm ' + name + ' worlds ram ' + world);
+      },
+      todisk: function () {
+        return msmExec('msm ' + name + ' worlds todisk');
+      },
+      backup: function () {
+        return msmExec('msm ' + name + ' worlds backup');
+      },
+      on: function (world) {
+        return msmExec('msm ' + name + ' worlds on ' + world);
+      },
+      off: function (world) {
+        return msmExec('msm ' + name + ' worlds off ' + world);
+      }
+    }, // end worlds
+    whiteList: {
+      on: function () {
+        return msmExec('msm ' + name + ' wl on');
+      },
+      off: function () {
+        return msmExec('msm ' + name + ' wl off');
+      }
+    }, // end whiteList
+    save: {
+      on: function () {
+        return msmExec('msm ' + name + ' save on');
+      },
+      off: function () {
+        return msmExec('msm ' + name + ' save off');
+      },
+      now: function () {
+        return msmExec('msm ' + name + ' save all');
+      }
+    }, // end save
+    player: function (player) {
+      return {
+        setGameMode: {
+          survival: function () {
+            return msmExec('msm ' + name + ' gm survival ' + player);
+          },
+          creative: function () {
+            return msmExec('msm ' + name + ' gm creative ' + player);
+          },
+          adventure: function () {
+            return msmExec('msm ' + name + ' gm adventure ' + player);
+          },
+          spectator: function () {
+            return msmExec('msm ' + name + ' gm spectator ' + player);
+          }
+        },
+        ban: function () {
+          return msmExec('msm ' + name + ' bl add ' + player);
+        },
+        unban: function () {
+          return msmExec('msm ' + name + ' bl remove ' + player);
+        },
+        addWhiteList: function () {
+          return msmExec('msm ' + name + ' wl add ' + player);
+        },
+        removeWhiteList: function () {
+          return msmExec('msm ' + name + ' wl remove ' + player);
+        },
+        kick: function () {
+          return msmExec('msm ' + name + ' kick ' + player);
+        },
+        op: function (player) {
+          return msmExec('msm ' + name + ' op add ' + player);
+        },
+        deop: function (player) {
+          return msmExec('msm ' + name + ' op remove ' + player);
+        },
+        give: function (item, amount, data) {
+          return msmExec('msm ' + name + ' give ' + player + ' ' + item + ' ' + amount + ' ' + data);
+        },
+        giveXp: function (amount) {
+          return msmExec('msm ' + name + ' xp ' + player + ' ' + amount);
+        }
+      }; // end return for player
+    } // end player object
+  }; // end return for server
+}; // end server function
