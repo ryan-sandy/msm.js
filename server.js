@@ -2,7 +2,7 @@
 /*jslint node:true, indent:2*/
 
 var exec = require('child_process').exec;
-var isFunction = require('lodash.isfunction');
+import _ from 'lodash';
 
 var validName = /^[a-zA-Z0-9\_\-]+$/;
 var invalidName = /^(start|stop|restart|version|server|jargroup|all|config|update|help|\-\-.*)$/;
@@ -97,21 +97,22 @@ var formatServerList = function (serverList) {
   return servers;
 };
 
-var formatServerConfig = function (configArr) {
+var formatPropertiesFile = function (configString) {
   var config = {};
-  configArr.split('\n').forEach(function (ele) {
+  configString.split('\n').forEach(function (ele) {
     var split = ele.split('=');
-    if (split[1]) {
-      config[split[0]] = split[1].replace(/"/g, '');
-    } else {
-      config[split[0]] = "";
+    if (!split[0].startsWith('#') && split[0] !== '') {
+      if (split[1]) {
+        config[split[0]] = split[1].replace(/"/g, '');
+      } else {
+        config[split[0]] = "";
+      }
     }
-
   });
   return config;
 };
 
-var cat = function(filePath, formatter) {
+var cat = function (filePath, formatter) {
   filePath = clean(filePath);
   return new Promise(
     function (resolve, reject) {
@@ -119,7 +120,7 @@ var cat = function(filePath, formatter) {
         if (err) {
           reject({error: err, msg: stderr});
         }
-        if (isFunction(formatter)) {
+        if (_.isFunction(formatter)) {
           resolve(formatter(stdout));
         } else {
           resolve(stdout);
@@ -137,7 +138,7 @@ var msmExec = function (cmd, formatter) {
         if (err) {
           reject({error: err, msg: stderr});
         }
-        if (isFunction(formatter)) {
+        if (_.isFunction(formatter)) {
           resolve(formatter(stdout));
         } else {
           resolve(stdout);
@@ -179,19 +180,19 @@ exports.jarGroup = function (name) {
 
 exports.global = {
   start: function () {
-    return msmExec('msm  start');
+    return msmExec('msm start');
   },
-  stop: function (now) {
+  stop: function (now = false) {
     if (now) {
-      return msmExec('msm  stop now');
+      return msmExec('msm stop now');
     }
-    return msmExec('msm  stop');
+    return msmExec('msm stop');
   },
-  restart: function (now) {
+  restart: function (now = false) {
     if (now) {
-      return msmExec('msm  restart now');
+      return msmExec('msm restart now');
     }
-    return msmExec('msm  restart now');
+    return msmExec('msm restart now');
   },
   version: function () {
     return msmExec('msm  version');
@@ -205,7 +206,7 @@ exports.global = {
     return msmExec('msm  update');
   },
   listServers: function () {
-    return msmExec('msm  server list');
+    return msmExec('msm  server list', formatServerList);
   }
 }; // end global object
 
@@ -213,6 +214,7 @@ exports.server = function (name) {
   if (!isValidName(name)) {
     return rejectRequest(msgReservedName)
   }
+  var self = this;
   return {
     create: function () {
       return msmExec('msm create ' + name);
@@ -226,11 +228,14 @@ exports.server = function (name) {
     start: function () {
       return msmExec('msm ' + name + ' start');
     },
-    stop: function (now) {
-      return msmExec('msm ' + name + ' stop' + (now) ? ' now' : '');
+    stop: function (now = false) {
+      if (now) {
+        return msmExec('msm ' + name + ' stop now');
+      }
+      return msmExec('msm ' + name + ' stop');
     },
-    restart: function (now) {
-      return msmExec('msm ' + name + ' restart' + (now) ? ' now' : '');
+    restart: function (now = false) {
+      return msmExec('msm ' + name + ' restart' + ((now) ? ' now' : ''));
     },
     status: function () {
       return msmExec('msm ' + name + ' status');
@@ -267,26 +272,47 @@ exports.server = function (name) {
      return msmExec('msm ' + name + ' cmdlog ' + cmd);
      },*/
     config: {
-      getMsm: function() {
-        return msmExec('msm ' + name + ' config', formatServerConfig);
-      },
-      setMsm: function(key, value) {
-        return msmExec('msm ' + name + ' config ' + key + ' ' + value);
-      },
-      getMc: function() {
+      getProperties: function () {
         return new Promise(
           function (resolve, reject) {
-            var propFile = this.getMsm()["msm-world-storage-path"].replace(/worldstorage/, 'server.properties');
-            var mcProps = cat(propFile, formatServerConfig);
-            mcProps.then(function(results){
-              for(var key in mcServerProps) {
-                if (!results.hasProperty(key)){
-                  results[key] = mcServerProps[key];
-                }
-              }
-              resolve(results);
-            })
-            .catch(reject);
+            self.server(name).config.getMsm()
+              .then((msmProps) => {
+                self.server(name).config.getMc()
+                  .then((mcProps) => {
+                    resolve(_.merge(msmProps, mcProps));
+                  })
+                  .catch(reject);
+              })
+              .catch(reject);
+          });
+      },
+      getMsm: function () {
+        return msmExec('msm ' + name + ' config', formatPropertiesFile);
+      },
+      getMsmKeyValue: function (key) {
+        return msmExec('msm ' + name + ' config ' + key);
+      },
+      setMsm: function (key, value) {
+        return msmExec('msm ' + name + ' config ' + key + ' ' + value);
+      },
+      // todo split this into smaller more readable functions
+      getMc: function () {
+        return new Promise(
+          function (resolve, reject) {
+            self.server(name).config.getMsmKeyValue("msm-world-storage-path")
+              .then(function (propFile) {
+                propFile = propFile.replace('worldstorage', 'server.properties');
+                cat(propFile, formatPropertiesFile)
+                  .then(function (results) {
+                    for (var key in mcServerProps) {
+                      if (!results.hasOwnProperty(key)) {
+                        results[key] = mcServerProps[key];
+                      }
+                    }
+                    resolve(results);
+                  })
+                  .catch(reject);
+              });
           }
         );
       }
