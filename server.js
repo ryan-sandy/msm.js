@@ -89,12 +89,12 @@ var formatServerList = function (serverList) {
       .replace('[ ACTIVE ]', 'ACTIVE')
       .replace('[INACTIVE]', 'INACTIVE')
       .split(' ');
-      servers.push({
-        'name': tmp[1].slice(1, tmp[1].length - 1),
-        'state': tmp[3].slice(0, tmp[3].length - 1),
-        'status': tmp[0],
-        'message': ser.slice(ser.indexOf('.') + 2)
-      });
+    servers.push({
+      'name': tmp[1].slice(1, tmp[1].length - 1),
+      'state': tmp[3].slice(0, tmp[3].length - 1),
+      'status': tmp[0],
+      'message': ser.slice(ser.indexOf('.') + 2)
+    });
   });
   return servers;
 };
@@ -127,6 +127,19 @@ var cat = function (filePath, formatter) {
         } else {
           resolve(stdout);
         }
+      })
+    }
+  );
+};
+var createEula = function (filePath, booleanEula) {
+  filePath = clean(filePath);
+  return new Promise(
+    function (resolve, reject) {
+      exec("echo 'eula=" + booleanEula + "' > " + filePath + 'eula.txt', function (err, stdout, stderr) {
+        if (err) {
+          reject({error: err, msg: stderr});
+        }
+        resolve(stdout);
       })
     }
   );
@@ -329,8 +342,21 @@ exports.server = function (name) {
               }); // end .then
           } // end function
         ); // end Promise
-      } // end getMc
-    },
+      }, // end getMc
+      setEula: function (booleanEula = true) {
+        return new Promise(
+          function (resolve, reject) {
+            self.server(name).getPath()
+              .then(function (path) {
+                createEula(path, booleanEula)
+                  .then(resolve)
+                  .catch(reject);
+              }) // end then
+              .catch(reject);
+            // end getPath
+          }); // end promise
+      }, // end setEula
+    }, // end config
     worlds: {
       list: function () {
         return msmExec('msm ' + name + ' worlds list');
@@ -419,4 +445,5 @@ exports.server = function (name) {
       }; // end return for player
     } // end player object
   }; // end return for server
-}; // end server function
+}
+; // end server function
