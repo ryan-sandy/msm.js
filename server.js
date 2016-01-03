@@ -243,7 +243,11 @@ exports.server = function (name) {
   }
   var self = this;
   return {
-    create: function () {
+    create: function (eula) {
+      if (eula) {
+        return msmExec('msm server create ' + name)
+          .then(()=>self.server(name).config.setEula());
+      }
       return msmExec('msm server create ' + name);
     },
     delete: function () {
