@@ -273,6 +273,18 @@ exports.server = function (name) {
      sendCmdReturnLog: function (cmd) {
      return msmExec('msm ' + name + ' cmdlog ' + cmd);
      },*/
+    getPath: function () {
+      return new Promise(
+        function (resolve, reject) {
+          self.server(name).config.getMsmKeyValue("msm-world-storage-path")
+            .then(function (worldPath) {
+              var path = worldPath.slice(0, worldPath.lastIndexOf('/') + 1);
+              resolve(path);
+            }) // end .then
+            .catch(reject);
+        } // end function
+      ); // end Promise
+    },
     config: {
       getProperties: function () {
         return new Promise(
@@ -301,23 +313,23 @@ exports.server = function (name) {
       getMc: function () {
         return new Promise(
           function (resolve, reject) {
-            self.server(name).config.getMsmKeyValue("msm-world-storage-path")
-              .then(function (propFile) {
-                propFile = propFile.replace('worldstorage', 'server.properties');
+            self.server(name).getPath()
+              .then(function (path) {
+                var propFile = path + 'server.properties';
                 cat(propFile, formatPropertiesFile)
                   .then(function (results) {
                     for (var key in mcServerProps) {
                       if (!results.hasOwnProperty(key)) {
                         results[key] = mcServerProps[key];
-                      }
-                    }
+                      } // end if
+                    } // end for
                     resolve(results);
-                  })
+                  }) // end .then
                   .catch(reject);
-              });
-          }
-        );
-      }
+              }); // end .then
+          } // end function
+        ); // end Promise
+      } // end getMc
     },
     worlds: {
       list: function () {
