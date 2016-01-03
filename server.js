@@ -89,12 +89,12 @@ var formatServerList = function (serverList) {
       .replace('[ ACTIVE ]', 'ACTIVE')
       .replace('[INACTIVE]', 'INACTIVE')
       .split(' ');
-      servers.push({
-        'name': tmp[1].slice(1, tmp[1].length - 1),
-        'state': tmp[3].slice(0, tmp[3].length - 1),
-        'status': tmp[0],
-        'message': ser.slice(ser.indexOf('.') + 2)
-      });
+    servers.push({
+      'name': tmp[1].slice(1, tmp[1].length - 1),
+      'state': tmp[3].slice(0, tmp[3].length - 1),
+      'status': tmp[0],
+      'message': ser.slice(ser.indexOf('.') + 2)
+    });
   });
   return servers;
 };
@@ -131,9 +131,21 @@ var cat = function (filePath, formatter) {
     }
   );
 };
+var createEula = function (filePath, booleanEula) {
+  filePath = clean(filePath);
+  return new Promise(
+    function (resolve, reject) {
+      exec("echo 'eula=" + booleanEula + "' > " + filePath + 'eula.txt', function (err, stdout, stderr) {
+        if (err) {
+          reject({error: err, msg: stderr});
+        }
+        resolve(stdout);
+      })
+    }
+  );
+};
 
-var msmExec = function (cmd, formatter) {
-  cmd = clean(cmd);
+var _msmExec = function (cmd, formatter) {
   return new Promise(
     function (resolve, reject) {
       exec(cmd, function (err, stdout, stderr) {
@@ -149,6 +161,19 @@ var msmExec = function (cmd, formatter) {
     }
   );
 };
+
+var msmExec = function (cmd, formatter, echo) {
+  if (echo !== undefined) {
+    cmd = clean(cmd);
+    echo = clean(echo);
+    cmd = 'echo ' + echo + ' | ' + cmd;
+    return _msmExec(cmd, formatter);
+  }
+  cmd = clean(cmd);
+  return _msmExec(cmd, formatter);
+};
+
+
 var rejectRequest = function (reason) {
   return new Promise(
     function (resolve, reject) {
@@ -218,14 +243,18 @@ exports.server = function (name) {
   }
   var self = this;
   return {
-    create: function () {
-      return msmExec('msm create ' + name);
+    create: function (eula) {
+      if (eula) {
+        return msmExec('msm server create ' + name)
+          .then(()=>self.server(name).config.setEula());
+      }
+      return msmExec('msm server create ' + name);
     },
     delete: function () {
-      return msmExec('msm delete ' + name);
+      return msmExec('msm server delete ' + name, undefined, 'y');
     },
     rename: function (newName) {
-      return msmExec('msm rename ' + name + ' ' + newName);
+      return msmExec('msm server rename ' + name + ' ' + newName);
     },
     start: function () {
       return msmExec('msm ' + name + ' start');
@@ -273,6 +302,18 @@ exports.server = function (name) {
      sendCmdReturnLog: function (cmd) {
      return msmExec('msm ' + name + ' cmdlog ' + cmd);
      },*/
+    getPath: function () {
+      return new Promise(
+        function (resolve, reject) {
+          self.server(name).config.getMsmKeyValue("msm-world-storage-path")
+            .then(function (worldPath) {
+              var path = worldPath.slice(0, worldPath.lastIndexOf('/') + 1);
+              resolve(path);
+            }) // end .then
+            .catch(reject);
+        } // end function
+      ); // end Promise
+    },
     config: {
       getProperties: function () {
         return new Promise(
@@ -301,24 +342,37 @@ exports.server = function (name) {
       getMc: function () {
         return new Promise(
           function (resolve, reject) {
-            self.server(name).config.getMsmKeyValue("msm-world-storage-path")
-              .then(function (propFile) {
-                propFile = propFile.replace('worldstorage', 'server.properties');
+            self.server(name).getPath()
+              .then(function (path) {
+                var propFile = path + 'server.properties';
                 cat(propFile, formatPropertiesFile)
                   .then(function (results) {
                     for (var key in mcServerProps) {
                       if (!results.hasOwnProperty(key)) {
                         results[key] = mcServerProps[key];
-                      }
-                    }
+                      } // end if
+                    } // end for
                     resolve(results);
-                  })
+                  }) // end .then
                   .catch(reject);
-              });
-          }
-        );
-      }
-    },
+              }); // end .then
+          } // end function
+        ); // end Promise
+      }, // end getMc
+      setEula: function (booleanEula = true) {
+        return new Promise(
+          function (resolve, reject) {
+            self.server(name).getPath()
+              .then(function (path) {
+                createEula(path, booleanEula)
+                  .then(resolve)
+                  .catch(reject);
+              }) // end then
+              .catch(reject);
+            // end getPath
+          }); // end promise
+      }, // end setEula
+    }, // end config
     worlds: {
       list: function () {
         return msmExec('msm ' + name + ' worlds list');
@@ -407,4 +461,5 @@ exports.server = function (name) {
       }; // end return for player
     } // end player object
   }; // end return for server
-}; // end server function
+}
+; // end server function
