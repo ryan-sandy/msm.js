@@ -145,8 +145,7 @@ var createEula = function (filePath, booleanEula) {
   );
 };
 
-var msmExec = function (cmd, formatter) {
-  cmd = clean(cmd);
+var _msmExec = function (cmd, formatter) {
   return new Promise(
     function (resolve, reject) {
       exec(cmd, function (err, stdout, stderr) {
@@ -162,6 +161,19 @@ var msmExec = function (cmd, formatter) {
     }
   );
 };
+
+var msmExec = function (cmd, formatter, echo) {
+  if (echo !== undefined) {
+    cmd = clean(cmd);
+    echo = clean(echo);
+    cmd = 'echo ' + echo + ' | ' + cmd;
+    return _msmExec(cmd, formatter);
+  }
+  cmd = clean(cmd);
+  return _msmExec(cmd, formatter);
+};
+
+
 var rejectRequest = function (reason) {
   return new Promise(
     function (resolve, reject) {
@@ -232,13 +244,13 @@ exports.server = function (name) {
   var self = this;
   return {
     create: function () {
-      return msmExec('msm create ' + name);
+      return msmExec('msm server create ' + name);
     },
     delete: function () {
-      return msmExec('msm delete ' + name);
+      return msmExec('msm server delete ' + name, undefined, 'y');
     },
     rename: function (newName) {
-      return msmExec('msm rename ' + name + ' ' + newName);
+      return msmExec('msm server rename ' + name + ' ' + newName);
     },
     start: function () {
       return msmExec('msm ' + name + ' start');
