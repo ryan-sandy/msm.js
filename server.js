@@ -85,14 +85,16 @@ var isValidName = function (name) {
 var formatServerList = function (serverList) {
   var servers = [];
   serverList.trim().split('\n').forEach(function (ser) {
-    var pos = ser.search('\"'), end = ser.lastIndexOf('\"');
-    if (pos >= 0) {
+    var tmp = ser
+      .replace('[ ACTIVE ]', 'ACTIVE')
+      .replace('[INACTIVE]', 'INACTIVE')
+      .split(' ');
       servers.push({
-        'name': ser.slice(pos + 1, end),
-        'status': ser.slice(1, ser.search("]")).trim(),
+        'name': tmp[1].slice(1, tmp[1].length - 1),
+        'state': tmp[3].slice(0, tmp[3].length - 1),
+        'status': tmp[0],
         'message': ser.slice(ser.indexOf('.') + 2)
       });
-    }
   });
   return servers;
 };
